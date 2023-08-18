@@ -64,19 +64,16 @@ class PhpError extends AbstractError
      */
     protected function renderHtmlErrorMessage(Throwable $error)
     {
-        $title = 'Slim Application Error';
+        $error_id = rand(100,999).time();
 
-        if ($this->displayErrorDetails) {
-            $html = '<p>The application could not run because of the following error:</p>';
-            $html .= '<h2>Details</h2>';
+        $title = '[#' .$error_id.'] <br>Si è verificato un errore inaspettato';
+        $html = '<p>The application could not run because of the following error:</p>';
+        $html .= '<h2>Details - Error ID: ' . $error_id . '</h2>';
+        $html .= $this->renderHtmlError($error);
+
+        while ($error = $error->getPrevious()) {
+            $html .= '<h2>Previous error</h2>';
             $html .= $this->renderHtmlError($error);
-
-            while ($error = $error->getPrevious()) {
-                $html .= '<h2>Previous error</h2>';
-                $html .= $this->renderHtmlError($error);
-            }
-        } else {
-            $html = '<p>A website error has occurred. Sorry for the temporary inconvenience.</p>';
         }
 
         $output = sprintf(
@@ -88,6 +85,26 @@ class PhpError extends AbstractError
             $title,
             $html
         );
+        if(defined("PREFISSO_MONGO"))
+            mongoLog(['error' => ($output), 'error_id' => $error_id], "_slim_errors", "critical");
+        /*
+        $output = sprintf(
+            "<html><head><meta http-equiv='Content-Type' content='text/html; charset=utf-8'>" .
+            "<title>%s</title><style>body{margin:0;padding:30px;font:12px/1.5 Helvetica,Arial,Verdana," .
+            "sans-serif;}h1{margin:0;font-size:48px;font-weight:normal;line-height:48px;}strong{" .
+            "display:inline-block;width:65px;}</style></head><body><h1>%s</h1>%s</body></html>",
+            $title,
+            $title,
+            $html
+        );
+        */
+            //$html = '<p>La preghiamo di comunicare il codice errore all\'assistenza</p>';//'<p>A website error has occurred. Sorry for the temporary inconvenience.</p>';
+            $output = '{
+                        "error_code":"generic_error",
+                        "message": "Error code '. $error_id.'",
+                        "status" : 400
+                        }';
+
 
         return $output;
     }
@@ -136,11 +153,11 @@ class PhpError extends AbstractError
      */
     protected function renderJsonErrorMessage(Throwable $error)
     {
+        $error_id = rand(100,999).time();
         $json = [
             'message' => 'Slim Application Error',
         ];
 
-        if ($this->displayErrorDetails) {
             $json['error'] = [];
 
             do {
@@ -153,7 +170,11 @@ class PhpError extends AbstractError
                     'trace' => explode("\n", $error->getTraceAsString()),
                 ];
             } while ($error = $error->getPrevious());
-        }
+
+        if(defined("PREFISSO_MONGO"))
+            mongoLog(['error' => ($json), 'error_id' => $error_id], "_slim_errors", "critical");
+
+        $json = ["error_code" => "generic_error", "status" => 400, "message" => "Error code " . $error_id];
 
         return json_encode($json, JSON_PRETTY_PRINT);
     }
